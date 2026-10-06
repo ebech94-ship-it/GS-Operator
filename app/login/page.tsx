@@ -3,7 +3,8 @@
 import Image from "next/image";
 import { FormEvent, useState } from "react";
 import { signInWithEmailAndPassword } from "firebase/auth";
-import { auth } from "@/lib/firebase";
+import { doc, getDoc } from "firebase/firestore";
+import { auth, db } from "@/lib/firebase";
 import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
@@ -16,38 +17,58 @@ export default function LoginPage() {
   const [error, setError] = useState("");
 
   async function handleLogin(event: FormEvent) {
-    event.preventDefault();
+  event.preventDefault();
 
-    setError("");
-    setLoading(true);
+  setError("");
+  setLoading(true);
 
-    try {
-      await signInWithEmailAndPassword(auth, email.trim(), password);
-      router.push("/");
-    } catch (error: unknown) {
-      if (
-        typeof error === "object" &&
-        error !== null &&
-        "code" in error
-      ) {
-        const code = (error as { code: string }).code;
+  try {
+    const credential = await signInWithEmailAndPassword(
+      auth,
+      email.trim(),
+      password
+    );
 
-        if (code === "auth/invalid-credential") {
-          setError("Incorrect email or password.");
-        } else if (code === "auth/invalid-email") {
-          setError("Please enter a valid email address.");
-        } else if (code === "auth/too-many-requests") {
-          setError("Too many attempts. Please try again later.");
-        } else {
-          setError("Unable to sign in. Please try again.");
-        }
+    const uid = credential.user.uid;
+
+    const applicationSnapshot = await getDoc(
+      doc(db, "operatorApplications", uid)
+    );
+
+    if (applicationSnapshot.exists()) {
+      const application = applicationSnapshot.data();
+
+      if (application.status === "rejected") {
+        router.push("/reapply");
+        return;
+      }
+    }
+
+    router.push("/");
+  } catch (error: unknown) {
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error
+    ) {
+      const code = (error as { code: string }).code;
+
+      if (code === "auth/invalid-credential") {
+        setError("Incorrect email or password.");
+      } else if (code === "auth/invalid-email") {
+        setError("Please enter a valid email address.");
+      } else if (code === "auth/too-many-requests") {
+        setError("Too many attempts. Please try again later.");
       } else {
         setError("Unable to sign in. Please try again.");
       }
-    } finally {
-      setLoading(false);
+    } else {
+      setError("Unable to sign in. Please try again.");
     }
+  } finally {
+    setLoading(false);
   }
+}
 
   return (
     <main className="min-h-screen bg-[#F5F7FA]">
