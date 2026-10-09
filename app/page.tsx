@@ -1,14 +1,88 @@
 "use client";
 
 import Image from "next/image";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { collection, getCountFromServer, getDocs, } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import { signOut } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { useRouter } from "next/navigation";
 
+type Trip = {
+  id: string;
+  operatorId: string;
+  vehicleId: string;
+  from: string;
+  to: string;
+  departure: string;
+  arrival: string;
+  duration: string;
+  price: number;
+  date: string;
+  occupiedSeats: string[];
+};
+
 export default function Home() {
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
+
+const [stats, setStats] = useState({
+  trips: 0,
+  bookings: 0,
+  vehicles: 0,
+  passengers: 0,
+});
+const [todayTrips, setTodayTrips] = useState<Trip[]>([]);
+
+const [loadingTodayTrips, setLoadingTodayTrips] = useState(true);
+
+useEffect(() => {
+  async function loadStats() {
+    try {
+      const [trips, bookings, vehicles] = await Promise.all([
+        getCountFromServer(collection(db, "trips")),
+        getCountFromServer(collection(db, "bookings")),
+        getCountFromServer(collection(db, "vehicles")),
+      ]);
+      async function loadTodayTrips() {
+  try {
+    const snapshot = await getDocs(collection(db, "trips"));
+
+    const today = new Date().toISOString().split("T")[0];
+
+   const loadedTrips = snapshot.docs
+  .map((doc) => ({
+    id: doc.id,
+    ...doc.data(),
+  }) as Trip)
+  .filter((trip) => trip.date === today)
+  .slice(0, 2);
+
+setTodayTrips(loadedTrips);
+
+  } catch (error) {
+    
+    console.error("OPERATOR TODAY TRIPS ERROR:", error);
+  } finally {
+    setLoadingTodayTrips(false);
+  }
+}
+
+loadTodayTrips();
+
+      setStats({
+        trips: trips.data().count,
+        bookings: bookings.data().count,
+        vehicles: vehicles.data().count,
+        passengers: 0,
+      });
+    } catch (error) {
+      console.error("OPERATOR DASHBOARD STATS ERROR:", error);
+    }
+  }
+
+  loadStats();
+}, []);
 
   async function handleLogout() {
     await signOut(auth);
@@ -237,10 +311,29 @@ export default function Home() {
 
           {/* Stats */}
           <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <StatCard title="Trips" subtitle="Voyages" value="12" />
-            <StatCard title="Bookings" subtitle="Réservations" value="48" />
-            <StatCard title="Vehicles" subtitle="Véhicules" value="8" />
-            <StatCard title="Passengers" subtitle="Passagers" value="126" />
+           <StatCard
+  title="Trips"
+  subtitle="Voyages"
+  value={String(stats.trips)}
+/>
+
+<StatCard
+  title="Bookings"
+  subtitle="Réservations"
+  value={String(stats.bookings)}
+/>
+
+<StatCard
+  title="Vehicles"
+  subtitle="Véhicules"
+  value={String(stats.vehicles)}
+/>
+
+<StatCard
+  title="Passengers"
+  subtitle="Passagers"
+  value={String(stats.passengers)}
+/>
           </div>
 
           {/* Create trip */}
@@ -282,21 +375,32 @@ export default function Home() {
             </div>
 
             <div className="mt-4 space-y-3">
-             <TripCard
-  route="Kumba → Yaoundé"
-  time="9:00 PM"
-  seats="70 seats"
-  fare="8,000 FCFA"
-  onManage={() => router.push("/trips")}
-/>
+      {loadingTodayTrips ? (
+  <div className="rounded-2xl bg-white p-5 text-sm text-slate-500 shadow-sm">
+    Loading today&apos;s trips...
+  </div>
+) : todayTrips.length === 0 ? (
+  <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-5 text-center">
+    <p className="font-bold text-[#0B1F3A]">
+      No trips today
+    </p>
 
-              <TripCard
-  route="Buea → Douala"
-  time="7:30 AM"
-  seats="50 seats"
-  fare="5,000 FCFA"
-  onManage={() => router.push("/trips")}
-/>
+    <p className="mt-1 text-xs text-slate-500">
+      No scheduled journeys for today.
+    </p>
+  </div>
+) : (
+  todayTrips.map((trip) => (
+    <TripCard
+      key={trip.id}
+      route={`${trip.from} → ${trip.to}`}
+      time={`${trip.departure} → ${trip.arrival}`}
+      seats={`${trip.occupiedSeats.length} occupied`}
+      fare={`${trip.price.toLocaleString()} FCFA`}
+      onManage={() => router.push("/trips")}
+    />
+  ))
+)}
             </div>
           </div>
         </div>
