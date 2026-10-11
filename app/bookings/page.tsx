@@ -5,7 +5,7 @@ import {
   collection,
   getDocs,
   orderBy,
-  query,
+  query,Timestamp,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
@@ -28,7 +28,7 @@ type Booking = {
   paymentMethod?: string;
   paymentStatus?: string;
   bookingStatus?: string;
-  createdAt?: any;
+ createdAt?: Timestamp | Date | string | number;
 };
 
 export default function BookingsPage() {

@@ -14,12 +14,7 @@ import {
   serverTimestamp,
   updateDoc,
 } from "firebase/firestore";
-import {
-  getDownloadURL,
-  getStorage,
-  ref,
-  uploadBytes,
-} from "firebase/storage";
+
 import { auth, db } from "@/lib/firebase";
 
 type Company = {
@@ -43,7 +38,45 @@ type Location = {
   id: string;
   name: string;
 };
+async function uploadCompanyLogo(file: File): Promise<string> {
+  const cloudName =
+    process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
+  const uploadPreset =
+    process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
 
+  if (!cloudName || !uploadPreset) {
+    throw new Error("Cloudinary configuration is missing.");
+  }
+
+  if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+    throw new Error("Choose a JPG, PNG, or WebP image.");
+  }
+
+  if (file.size > 5 * 1024 * 1024) {
+    throw new Error("Company logo must be smaller than 5MB.");
+  }
+
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("upload_preset", uploadPreset);
+
+  const response = await fetch(
+    `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
+    {
+      method: "POST",
+      body: formData,
+    }
+  );
+
+  const result = await response.json();
+
+  if (!response.ok || !result.secure_url) {
+    console.error("Cloudinary upload failed:", result);
+    throw new Error(result.error?.message || "Logo upload failed.");
+  }
+
+  return result.secure_url as string;
+}
 export default function CompanyPage() {
   const [user, setUser] = useState<User | null>(null);
   const [company, setCompany] = useState<Company | null>(null);
@@ -152,56 +185,47 @@ export default function CompanyPage() {
     );
   }
 
-  async function saveCompany() {
-    if (!user || !company) return;
+ async function saveCompany() {
+  if (!user || !company) return;
 
-    setSaving(true);
-    setMessage("");
+  setSaving(true);
+  setMessage("");
 
-    try {
-      const storage = getStorage();
-      let logoUrl = company.logo ?? "";
+  try {
+    let logoUrl = company.logo ?? "";
 
-      if (logoFile) {
-        const logoRef = ref(
-          storage,
-          `operator-logos/${company.id}/${Date.now()}-${logoFile.name}`
-        );
-
-        await uploadBytes(logoRef, logoFile, {
-          contentType: logoFile.type,
-        });
-
-        logoUrl = await getDownloadURL(logoRef);
-      }
-
-      await updateDoc(doc(db, "operators", company.id), {
-        displayName: company.displayName?.trim() ?? "",
-        phone: company.phone?.trim() ?? "",
-        email: company.email?.trim() ?? "",
-        address: company.address?.trim() ?? "",
-        logo: logoUrl,
-        description: company.description?.trim() ?? "",
-        whatsapp: company.whatsapp?.trim() ?? "",
-        registrationNumber:
-          company.registrationNumber?.trim() ?? "",
-        operatingLocationIds:
-          company.operatingLocationIds ?? [],
-        updatedAt: serverTimestamp(),
-      });
-
-      setCompany({ ...company, logo: logoUrl });
-      setLogoFile(null);
-      setMessage("Company profile saved successfully.");
-    } catch (error) {
-      console.error("Company profile save failed:", error);
-      setMessage(
-        "Could not save your profile. Check Firestore and Storage permissions."
-      );
-    } finally {
-      setSaving(false);
+    if (logoFile) {
+      logoUrl = await uploadCompanyLogo(logoFile);
     }
+
+    await updateDoc(doc(db, "operators", company.id), {
+      displayName: company.displayName?.trim() ?? "",
+      phone: company.phone?.trim() ?? "",
+      email: company.email?.trim() ?? "",
+      address: company.address?.trim() ?? "",
+      logo: logoUrl,
+      description: company.description?.trim() ?? "",
+      whatsapp: company.whatsapp?.trim() ?? "",
+      registrationNumber:
+        company.registrationNumber?.trim() ?? "",
+      operatingLocationIds: company.operatingLocationIds ?? [],
+      updatedAt: serverTimestamp(),
+    });
+
+    setCompany({ ...company, logo: logoUrl });
+    setLogoFile(null);
+    setMessage("Company profile saved successfully.");
+  } catch (error) {
+    console.error("Company profile save failed:", error);
+    setMessage(
+      error instanceof Error
+        ? error.message
+        : "Could not save your company profile."
+    );
+  } finally {
+    setSaving(false);
   }
+}
 
   if (loading) {
     return (

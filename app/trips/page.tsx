@@ -1,7 +1,8 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
-import { addDoc, collection, getDocs, serverTimestamp } from "firebase/firestore";
+import { addDoc, collection, getDocs, query,
+  where, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
 
@@ -49,42 +50,44 @@ function LocationModal({
   onClose: () => void;
   onSelect: (city: string) => void;
 }) {
-  const [search, setSearch] = useState("");
-
-  if (!visible) {
-    return null;
-  }
-
+ const [search, setSearch] = useState("");
   const query = search.trim().toLowerCase();
 
-const filteredLocations = locations.filter((location) => {
-  if (!query) return true;
+  const filteredLocations = locations.filter((location) => {
+    if (!query) return true;
 
-  return (
-    location.name.toLowerCase().includes(query) ||
-    (location.region ?? "").toLowerCase().includes(query)
-  );
-});
+    return (
+      location.name.toLowerCase().includes(query) ||
+      (location.region ?? "").toLowerCase().includes(query) ||
+      location.country.toLowerCase().includes(query)
+    );
+  });
+
+ 
+
+  if (!visible) return null;
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-end bg-[rgba(5,18,35,0.42)]"
+     
+className="fixed inset-0 z-[100] flex items-end justify-center bg-[rgba(5,18,35,0.48)] sm:items-center sm:p-4"
+
       onClick={onClose}
     >
-      <div      
-  className="flex max-h-[90vh] w-full flex-col rounded-t-[30px] bg-[#F5F7FA] px-5 pb-7 pt-3 shadow-2xl sm:mx-auto sm:max-w-lg"
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        className="flex max-h-[85dvh] w-full flex-col overflow-hidden rounded-t-[30px] bg-[#F5F7FA] px-5 pb-[max(20px,env(safe-area-inset-bottom))] pt-3 shadow-2xl sm:max-w-lg"
         onClick={(event) => event.stopPropagation()}
       >
-        {/* HANDLE */}
-        <div className="mx-auto mb-5 h-1 w-10 rounded-full bg-[#CBD3DD]" />
+        <div className="mx-auto mb-4 h-1 w-10 shrink-0 rounded-full bg-[#CBD3DD]" />
 
-        {/* HEADER */}
-        <div className="mb-4 flex items-center justify-between">
+        <div className="mb-4 flex shrink-0 items-center justify-between">
           <div>
             <h2 className="text-2xl font-black text-[#0B1F3A]">
               {title}
             </h2>
-
             <p className="mt-1 text-[10px] text-[#7B899A]">
               {french}
             </p>
@@ -93,29 +96,27 @@ const filteredLocations = locations.filter((location) => {
           <button
             type="button"
             onClick={onClose}
-            className="flex h-10 w-10 items-center justify-center rounded-full bg-[#E7ECF2] text-[#526274] transition hover:bg-[#DDE4EC]"
+            aria-label="Close location picker"
+            className="flex h-10 w-10 items-center justify-center rounded-full bg-[#E7ECF2] text-[#526274] hover:bg-[#DDE4EC]"
           >
             <span className="text-2xl leading-none">×</span>
           </button>
         </div>
 
-        {/* TITLE */}
-        <p className="mb-3 text-[13px] font-bold text-[#62748A]">
+        <p className="mb-3 shrink-0 text-[13px] font-bold text-[#62748A]">
           Choose a city
         </p>
 
-        {/* SEARCH */}
         <input
           autoFocus
-          type="text"
+          type="search"
           value={search}
           onChange={(event) => setSearch(event.target.value)}
           placeholder="Search city..."
-          className="mb-3 h-12 w-full rounded-[14px] border border-[#EDF0F4] bg-white px-4 text-sm text-[#172B4D] outline-none transition focus:border-[#1976D2] focus:ring-2 focus:ring-blue-100"
+          className="mb-3 h-12 w-full shrink-0 rounded-[14px] border border-[#EDF0F4] bg-white px-4 text-sm text-[#172B4D] outline-none focus:border-[#1976D2] focus:ring-2 focus:ring-blue-100"
         />
 
-        {/* CITY LIST */}
-       <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
           {filteredLocations.map((location) => {
             const isSelected = selected === location.name;
 
@@ -127,37 +128,32 @@ const filteredLocations = locations.filter((location) => {
                   onSelect(location.name);
                   setSearch("");
                 }}
-                className={`mb-2 flex h-[62px] w-full items-center rounded-[17px] border px-3 text-left transition ${
+                className={`mb-2 flex min-h-[62px] w-full items-center rounded-[17px] border px-3 text-left transition ${
                   isSelected
                     ? "border-[#1976D2] bg-[#E8F1FB]"
                     : "border-[#EDF0F4] bg-white hover:border-[#1976D2]"
                 }`}
               >
-                {/* ICON */}
                 <div className="mr-3 flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-[13px] bg-[#F0F4F8]">
                   <span>📍</span>
                 </div>
 
-                {/* CITY */}
                 <div className="min-w-0 flex-1">
                   <p
                     className={`text-sm font-bold ${
-                      isSelected
-                        ? "text-[#1976D2]"
-                        : "text-[#172B4D]"
+                      isSelected ? "text-[#1976D2]" : "text-[#172B4D]"
                     }`}
                   >
                     {location.name}
                   </p>
 
-                  {location.region && (
-                    <p className="mt-0.5 text-[10px] text-[#7B899A]">
-                      {location.region}
-                    </p>
-                  )}
+                  <p className="mt-0.5 text-[10px] text-[#7B899A]">
+                    {[location.region, location.country]
+                      .filter(Boolean)
+                      .join(" • ")}
+                  </p>
                 </div>
 
-                {/* CHECK */}
                 {isSelected && (
                   <span className="ml-3 text-xl font-black text-[#1976D2]">
                     ✓
@@ -174,14 +170,14 @@ const filteredLocations = locations.filter((location) => {
           )}
         </div>
 
-        {/* FOOTER */}
-        <p className="mt-2 text-center text-[10px] text-[#8A96A6]">
+        <p className="mt-3 shrink-0 text-center text-[10px] text-[#8A96A6]">
           More GodSpeed destinations coming soon.
         </p>
       </div>
     </div>
   );
 }
+
 
 
 export default function TripsPage() {
@@ -208,7 +204,9 @@ const [showTo, setShowTo] = useState(false);
     let active = true;
 async function fetchLocations() {
   try {
-    const snapshot = await getDocs(collection(db, "locations"));
+    const snapshot = await getDocs(
+  query(collection(db, "locations"), where("active", "==", true))
+);
 
     if (!active) return;
 

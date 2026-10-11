@@ -5,7 +5,7 @@ import {
   collection,
   getDocs,
   query,
-  orderBy,
+  orderBy,  Timestamp,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
@@ -26,7 +26,7 @@ type Booking = {
   totalAmount?: number;
   paymentStatus?: string;
   bookingStatus?: string;
-  createdAt?: any;
+ createdAt?: Timestamp | Date | string | number;
 };
 
 type Passenger = {
@@ -38,6 +38,28 @@ type Passenger = {
   totalSpent: number;
   lastTrip?: Booking;
 };
+
+function getTimestampValue(
+  value?: Timestamp | Date | string | number
+): number {
+  if (!value) return 0;
+
+  if (value instanceof Timestamp) {
+    return value.toMillis();
+  }
+
+  if (value instanceof Date) {
+    return value.getTime();
+  }
+
+  if (typeof value === "number") {
+    return value;
+  }
+
+  const parsed = new Date(value).getTime();
+
+  return Number.isNaN(parsed) ? 0 : parsed;
+}
 
 export default function PassengersPage() {
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -131,13 +153,15 @@ export default function PassengersPage() {
           booking.totalAmount || 0
         );
 
-        if (
-          !existing.lastTrip ||
-          booking.createdAt?.seconds >
-            existing.lastTrip.createdAt?.seconds
-        ) {
-          existing.lastTrip = booking;
-        }
+        
+if (
+  !existing.lastTrip ||
+  getTimestampValue(booking.createdAt) >
+    getTimestampValue(existing.lastTrip.createdAt)
+) {
+  existing.lastTrip = booking;
+}
+
       }
     });
 

@@ -5,7 +5,7 @@ import {
   collection,
   getDocs,
   orderBy,
-  query,
+  query,Timestamp,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
@@ -18,7 +18,7 @@ type Payment = {
   amount?: number;
   method?: string;
   status?: string;
-  createdAt?: any;
+  createdAt?: import("firebase/firestore").Timestamp | Date | string | number;
 };
 
 export default function RevenuePage() {
@@ -127,27 +127,32 @@ export default function RevenuePage() {
   const formatAmount = (amount: number) =>
     amount.toLocaleString("en-US");
 
-  const formatDate = (timestamp: any) => {
-    if (!timestamp) return "—";
 
-    try {
-      const date = timestamp.toDate
+const formatDate = (
+  timestamp?: Timestamp | Date | string | number
+) => {
+  if (timestamp == null) return "—";
+
+  try {
+    const date =
+      timestamp instanceof Timestamp
         ? timestamp.toDate()
-        : new Date(timestamp);
+        : timestamp instanceof Date
+          ? timestamp
+          : new Date(timestamp);
 
-      if (Number.isNaN(date.getTime())) {
-        return "—";
-      }
+    if (Number.isNaN(date.getTime())) return "—";
 
-      return date.toLocaleDateString("en-GB", {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-      });
-    } catch {
-      return "—";
-    }
-  };
+    return date.toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+  } catch {
+    return "—";
+  }
+};
+
 
   const formatMethod = (method?: string) => {
     switch (method) {
